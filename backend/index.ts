@@ -1,15 +1,16 @@
-import express from "express"
+import express, { response } from "express"
 import { tavily } from "@tavily/core"
 import { GoogleGenAI } from "@google/genai"
 import { PROMPT_TEMPLATE, SYSTEM_PROMPT } from "./prompt";
 
 const ai = new GoogleGenAI({
     apiKey: process.env.GEMINI_API_KEY
-}); 
+});
 
 const client = tavily({ apiKey: process.env.TAVILY_API_KEY });
 
 const app = express();
+app.use(express.json());
 
 app.post("/purplexity_ask" , async (req , res) => {
     // STEP-1: get the query from the user
@@ -33,7 +34,12 @@ app.post("/purplexity_ask" , async (req , res) => {
           .replace("{{WEB_SEARCH_RESULTS}}" , JSON.stringify(WebSearchResult))
           .replace("{{USER_QUERY}}" , query);
 
-    const geminiResponse = await ai.models.generateContent({
+    res.setHeader("Content-Type", "text/plain; charset=utf-8");
+    res.setHeader("Transfer-Encoding", "chunked");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+
+    const geminiResponse = await ai.models.generateContentStream({
         model: "gemini-3-flash-preview",
         contents: prompt,
         config: {
@@ -41,10 +47,21 @@ app.post("/purplexity_ask" , async (req , res) => {
         }
     });
 
+    for await (const chunk of geminiResponse) {
+        if(chunk.text) {
+            res.write(chunk.text);
+        }
+    }
+    res.write("\n<SOURCES>\n");
 
     // STEP-7: also stream back the sources and the follow up questions that should be done by nother LLM in parallel
+    res.write(JSON.stringify(WebSearchResult.map(geminiResponse => ({ url: geminiResponse.url }))))
 
+    res.write("\n</SOURCES>\n");
     // STEP-8: close the event stream
+    res.end();
 })
 
-app.listen(3000);
+app.listen(3000 , () => {
+    console.log("Server running on Port 3000")
+});
