@@ -62,6 +62,13 @@ app.post("/purplexity_ask" , async (req , res) => {
     res.end();
 })
 
+app.post("/purplexity_ask/follow_up" , async (req , res) => {
+    // Step-1: Get the existing chat from the DB
+    // Step-2: Forward the full history to the LLM
+    // Step-3: Stream the response back to the user
+    
+})
+
 app.listen(3000 , () => {
     console.log("Server running on Port 3000")
 });
